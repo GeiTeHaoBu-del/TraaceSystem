@@ -90,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, onUnmounted } from 'vue'
 import { getEnterpriseStatistics } from '@/api/enterprise'
 import * as echarts from 'echarts'
 
@@ -106,13 +106,21 @@ const stats = ref({
 const typeChart = ref()
 const provinceChart = ref()
 const trendChart = ref()
+const chartInstances = ref<any[]>([])
 
 const loadData = async () => {
   loading.value = true
   try {
     const res = await getEnterpriseStatistics()
-    stats.value = res.data
-    
+    // 适配 request 响应结构
+    const data = res?.data || res
+    // 统计总数
+    stats.value = {
+      total: data.typeStats ? Object.values(data.typeStats).map(Number).reduce((a, b) => a + b, 0) : 0,
+      provinceStats: data.provinceStats || {},
+      monthStats: data.monthStats || {},
+      typeStats: data.typeStats || {}
+    }
     await nextTick()
     initCharts()
   } catch (error) {
@@ -123,131 +131,136 @@ const loadData = async () => {
 }
 
 const initCharts = () => {
-  initTypeChart()
-  initProvinceChart()
-  initTrendChart()
-}
-
-const initTypeChart = () => {
-  const chart = echarts.init(typeChart.value)
-  const option = {
-    tooltip: {
-      trigger: 'item'
-    },
-    legend: {
-      orient: 'vertical',
-      left: 'left'
-    },
-    series: [
-      {
-        name: '企业类型',
-        type: 'pie',
-        radius: '50%',
-        data: [
-          { value: stats.value.typeStats['1'] || 0, name: '养殖企业' },
-          { value: stats.value.typeStats['2'] || 0, name: '屠宰企业' },
-          { value: stats.value.typeStats['3'] || 0, name: '批发企业' },
-          { value: stats.value.typeStats['4'] || 0, name: '零售企业' }
-        ],
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.5)'
+  // 销毁旧图表
+  chartInstances.value.forEach((chart) => chart?.dispose?.())
+  chartInstances.value = []
+  if (typeChart.value) {
+    const chart = echarts.init(typeChart.value)
+    chartInstances.value.push(chart)
+    const option = {
+      tooltip: {
+        trigger: 'item'
+      },
+      legend: {
+        orient: 'vertical',
+        left: 'left'
+      },
+      series: [
+        {
+          name: '企业类型',
+          type: 'pie',
+          radius: '50%',
+          data: [
+            { value: stats.value.typeStats['1'] || 0, name: '养殖企业' },
+            { value: stats.value.typeStats['2'] || 0, name: '屠宰企业' },
+            { value: stats.value.typeStats['3'] || 0, name: '批发企业' },
+            { value: stats.value.typeStats['4'] || 0, name: '零售企业' }
+          ],
+          emphasis: {
+            itemStyle: {
+              shadowBlur: 10,
+              shadowOffsetX: 0,
+              shadowColor: 'rgba(0, 0, 0, 0.5)'
+            }
           }
         }
-      }
-    ]
+      ]
+    }
+    chart.setOption(option)
+    window.addEventListener('resize', () => chart.resize())
   }
-  chart.setOption(option)
-  window.addEventListener('resize', () => chart.resize())
-}
-
-const initProvinceChart = () => {
-  const chart = echarts.init(provinceChart.value)
-  const provinceData = Object.entries(stats.value.provinceStats)
-    .sort((a: any, b: any) => b[1] - a[1])
-    .slice(0, 10)
-  
-  const option = {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'value',
-      boundaryGap: [0, 0.01]
-    },
-    yAxis: {
-      type: 'category',
-      data: provinceData.map(item => item[0])
-    },
-    series: [
-      {
-        name: '企业数量',
-        type: 'bar',
-        data: provinceData.map(item => item[1]),
-        itemStyle: {
-          color: '#409EFF'
+  if (provinceChart.value) {
+    const chart = echarts.init(provinceChart.value)
+    chartInstances.value.push(chart)
+    const provinceData = Object.entries(stats.value.provinceStats)
+      .sort((a: any, b: any) => b[1] - a[1])
+      .slice(0, 10)
+    
+    const option = {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
         }
-      }
-    ]
-  }
-  chart.setOption(option)
-  window.addEventListener('resize', () => chart.resize())
-}
-
-const initTrendChart = () => {
-  const chart = echarts.init(trendChart.value)
-  const monthData = Object.entries(stats.value.monthStats)
-    .sort((a, b) => a[0].localeCompare(b[0]))
-  
-  const option = {
-    tooltip: {
-      trigger: 'axis'
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      boundaryGap: false,
-      data: monthData.map(item => item[0])
-    },
-    yAxis: {
-      type: 'value'
-    },
-    series: [
-      {
-        name: '注册企业数',
-        type: 'line',
-        stack: 'Total',
-        data: monthData.map(item => item[1]),
-        areaStyle: {},
-        smooth: true,
-        itemStyle: {
-          color: '#67C23A'
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'value',
+        boundaryGap: [0, 0.01]
+      },
+      yAxis: {
+        type: 'category',
+        data: provinceData.map(item => item[0])
+      },
+      series: [
+        {
+          name: '企业数量',
+          type: 'bar',
+          data: provinceData.map(item => item[1]),
+          itemStyle: {
+            color: '#409EFF'
+          }
         }
-      }
-    ]
+      ]
+    }
+    chart.setOption(option)
+    window.addEventListener('resize', () => chart.resize())
   }
-  chart.setOption(option)
-  window.addEventListener('resize', () => chart.resize())
+  if (trendChart.value) {
+    const chart = echarts.init(trendChart.value)
+    chartInstances.value.push(chart)
+    const monthData = Object.entries(stats.value.monthStats)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+    
+    const option = {
+      tooltip: {
+        trigger: 'axis'
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: monthData.map(item => item[0])
+      },
+      yAxis: {
+        type: 'value'
+      },
+      series: [
+        {
+          name: '注册企业数',
+          type: 'line',
+          stack: 'Total',
+          data: monthData.map(item => item[1]),
+          areaStyle: {},
+          smooth: true,
+          itemStyle: {
+            color: '#67C23A'
+          }
+        }
+      ]
+    }
+    chart.setOption(option)
+    window.addEventListener('resize', () => chart.resize())
+  }
 }
 
 onMounted(() => {
   loadData()
+})
+
+onUnmounted(() => {
+  chartInstances.value.forEach((chart) => chart?.dispose?.())
+  chartInstances.value = []
 })
 </script>
 

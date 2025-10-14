@@ -18,8 +18,8 @@
             <el-option label="零售企业" :value="4" />
           </el-select>
         </el-form-item>
-        <el-form-item label="企业名称">
-          <el-input v-model="searchForm.enterpriseName" placeholder="请输入企业名称" clearable />
+        <el-form-item label="省份">
+          <el-input v-model="searchForm.province" placeholder="请输入省份" clearable />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="loadData">查询</el-button>
@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getEnterprisePage,
@@ -132,9 +132,10 @@ const dialogVisible = ref(false)
 const dialogTitle = ref('新增企业')
 const formRef = ref()
 
+// 搜索区域表单字段调整
 const searchForm = reactive({
   enterpriseType: null,
-  enterpriseName: ''
+  province: ''
 })
 
 const pagination = reactive({
@@ -173,13 +174,17 @@ const getEnterpriseTypeName = (type: number) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getEnterprisePage({
+    // 只传递有值的查询参数，企业类型和省份
+    const params: any = {
       pageNum: pagination.pageNum,
-      pageSize: pagination.pageSize,
-      ...searchForm
-    })
-    tableData.value = res.data.records
-    pagination.total = res.data.total
+      pageSize: pagination.pageSize
+    }
+    if (searchForm.enterpriseType) params.enterpriseType = searchForm.enterpriseType
+    if (searchForm.province) params.province = searchForm.province
+    const res = await getEnterprisePage(params)
+    const data = res?.data || res
+    tableData.value = data.records || []
+    pagination.total = data.total || 0
   } catch (error) {
     console.error(error)
   } finally {
@@ -189,7 +194,7 @@ const loadData = async () => {
 
 const handleReset = () => {
   searchForm.enterpriseType = null
-  searchForm.enterpriseName = ''
+  searchForm.province = ''
   pagination.pageNum = 1
   loadData()
 }
@@ -265,6 +270,10 @@ const handleDelete = async (row: any) => {
 
 onMounted(() => {
   loadData()
+})
+
+onUnmounted(() => {
+  // 清理页面相关资源（如弹窗、定时器等）
 })
 </script>
 

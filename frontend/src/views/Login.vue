@@ -23,9 +23,8 @@
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" size="large" :loading="loading" @click="handleLogin" style="width: 100%">
-            登录
-          </el-button>
+          <el-button type="primary" size="large" :loading="loading" @click="handleLogin" style="width: 48%; margin-right: 4%">登录</el-button>
+          <el-button type="default" size="large" @click="goRegister" style="width: 48%">注册</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -76,6 +75,10 @@ const handleLogin = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const goRegister = () => {
+  router.push('/register')
 }
 </script>
 
