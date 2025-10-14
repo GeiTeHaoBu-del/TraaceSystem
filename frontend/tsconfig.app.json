@@ -21,7 +21,11 @@
     },
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "lib": [
+      "ES2015",
+      "DOM"
+    ]
   },
   "vueCompilerOptions": {
     "target": 3,

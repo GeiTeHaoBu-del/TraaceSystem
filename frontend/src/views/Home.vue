@@ -131,9 +131,13 @@ const loadStats = async () => {
       getEnterpriseCertificates(enterpriseId)
     ])
     
-    stats.value[0]!.value = batchRes.data.data.total || 0
-    stats.value[1]!.value = confirmRes.data.data.total || 0
-    stats.value[2]!.value = certRes.data.data.filter((c: any) => c.status === 1).length || 0
+    // 统一取 AxiosResponse 的 data 字段
+    const batchData = batchRes.data?.data || batchRes.data || batchRes
+    const confirmData = confirmRes.data?.data || confirmRes.data || confirmRes
+    const certData = certRes.data || certRes
+    stats.value[0]!.value = batchData.total || 0
+    stats.value[1]!.value = confirmData.total || 0
+    stats.value[2]!.value = Array.isArray(certData) ? certData.filter((c: any) => c.status === 1).length : 0
   } catch (error) {
     console.error('加载统计数据失败:', error)
   }

@@ -34,7 +34,7 @@
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px" destroy-on-close>
       <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px">
         <el-form-item label="证件类型" prop="certTypeId">
           <el-select v-model="form.certTypeId" placeholder="请选择证件类型">
@@ -68,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import {
@@ -110,10 +110,16 @@ const getCertTypeName = (certTypeId: number) => {
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getEnterpriseCertificates(userInfo.value.enterpriseId)
-    tableData.value = res.data
+    const eid = userInfo.value?.enterpriseId
+    if (!eid) {
+      tableData.value = []
+      return
+    }
+    const res = await getEnterpriseCertificates(eid)
+    tableData.value = res.data || res
   } catch (error) {
     console.error(error)
+    tableData.value = []
   } finally {
     loading.value = false
   }
@@ -184,6 +190,11 @@ const handleDelete = async (row: any) => {
 onMounted(() => {
   loadCertTypes()
   loadData()
+})
+
+// 如果有定时器、弹窗等资源，建议在 onUnmounted 清理
+onUnmounted(() => {
+  dialogVisible.value = false
 })
 </script>
 

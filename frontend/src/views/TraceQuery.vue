@@ -78,7 +78,7 @@ import { ElMessage } from 'element-plus'
 import { getTraceInfo } from '@/api/traceCode'
 
 const traceCode = ref('')
-const traceList = ref([])
+const traceList = ref<any[]>([])
 const searched = ref(false)
 
 const getEnterpriseTypeName = (item: any) => {
@@ -126,8 +126,10 @@ const handleSearch = async () => {
   searched.value = true
   try {
     const res = await getTraceInfo(traceCode.value.trim())
-    traceList.value = res.data
-    if (res.data.length === 0) {
+    // 适配 request 响应结构
+    const data = res?.data || res
+    traceList.value = Array.isArray(data) ? data : []
+    if (traceList.value.length === 0) {
       ElMessage.warning('未查询到溯源信息')
     }
   } catch (error) {
