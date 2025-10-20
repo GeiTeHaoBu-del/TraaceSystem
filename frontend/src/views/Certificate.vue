@@ -103,6 +103,10 @@ const formRules = {
 }
 
 const getCertTypeName = (certTypeId: number) => {
+  // 添加空值检查，防止组件卸载时访问空数组
+  if (!certTypeList.value || certTypeList.value.length === 0) {
+    return '-'
+  }
   const certType: any = certTypeList.value.find((ct: any) => ct.certTypeId === certTypeId)
   return certType ? certType.certTypeName : '-'
 }
@@ -152,6 +156,7 @@ const handleEdit = (row: any) => {
 }
 
 const handleSubmit = async () => {
+  if (!formRef.value) return
   await formRef.value.validate()
   try {
     const data = {
@@ -192,9 +197,12 @@ onMounted(() => {
   loadData()
 })
 
-// 如果有定时器、弹窗等资源，建议在 onUnmounted 清理
+// 组件卸载时清理所有异步资源
 onUnmounted(() => {
+  // 关闭所有对话框
   dialogVisible.value = false
+  // 停止加载状态
+  loading.value = false
 })
 </script>
 

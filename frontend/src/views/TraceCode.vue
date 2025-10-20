@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getTraceCodePage, generateTraceCode } from '@/api/traceCode'
@@ -195,6 +195,11 @@ const handleDownloadQRCode = async (row: any) => {
 onMounted(() => {
   loadData()
   loadBatches()
+})
+
+onUnmounted(() => {
+  // 组件卸载时关闭所有对话框
+  qrDialogVisible.value = false
 })
 </script>
 

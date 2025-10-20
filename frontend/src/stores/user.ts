@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref<string | null>(localStorage.getItem('token'))
-  
+
   // 初始化时从 localStorage 恢复 userInfo
   const savedUserInfo = localStorage.getItem('userInfo')
   const userInfo = ref<any>(savedUserInfo ? JSON.parse(savedUserInfo) : null)

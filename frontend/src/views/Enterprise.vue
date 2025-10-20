@@ -273,7 +273,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // 清理页面相关资源（如弹窗、定时器等）
+  // 组件卸载时关闭所有对话框
+  dialogVisible.value = false
 })
 </script>
 

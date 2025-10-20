@@ -17,59 +17,61 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     {
-      path: '/home',
-      redirect: '/'
-    },
-    {
       path: '/',
       component: () => import('@/layouts/MainLayout.vue'),
       meta: { requiresAuth: true },
       children: [
         {
           path: '',
+          redirect: '/home'
+        },
+        {
+          path: 'home',
           name: 'home',
-          component: () => import('@/views/Home.vue')
+          component: () => import('@/views/Home.vue'),
+          meta: { title: '首页' }
         },
         {
           path: 'enterprise',
           name: 'enterprise',
           component: () => import('@/views/Enterprise.vue'),
-          meta: { roles: [0] } // 只有系统管理员可以访问
+          meta: { roles: [0], title: '企业管理' }
         },
         {
           path: 'certificate',
           name: 'certificate',
           component: () => import('@/views/Certificate.vue'),
-          meta: { roles: [1, 2, 3, 4] } // 企业用户可以访问
+          meta: { roles: [1, 2, 3, 4], title: '证件管理' }
         },
         {
           path: 'batch',
           name: 'batch',
           component: () => import('@/views/Batch.vue'),
-          meta: { roles: [1, 2, 3, 4] }
+          meta: { roles: [1, 2, 3, 4], title: '批号管理' }
         },
         {
           path: 'confirmation',
           name: 'confirmation',
           component: () => import('@/views/Confirmation.vue'),
-          meta: { roles: [2, 3, 4] } // 屠宰、批发、零售可以访问
+          meta: { roles: [2, 3, 4], title: '确认请求' }
         },
         {
           path: 'trace-code',
           name: 'traceCode',
           component: () => import('@/views/TraceCode.vue'),
-          meta: { roles: [4] } // 只有零售商可以访问
+          meta: { roles: [4], title: '溯源码管理' }
         },
         {
           path: 'trace-query',
           name: 'traceQuery',
-          component: () => import('@/views/TraceQuery.vue')
+          component: () => import('@/views/TraceQuery.vue'),
+          meta: { title: '溯源查询' }
         },
         {
           path: 'statistics',
           name: 'statistics',
           component: () => import('@/views/Statistics.vue'),
-          meta: { roles: [0] } // 只有系统管理员可以访问
+          meta: { roles: [0], title: '数据统计' }
         }
       ]
     }
@@ -84,7 +86,7 @@ router.beforeEach((to, from, next) => {
 
   // 如果去登录页且已登录，重定向到首页
   if (to.path === '/login' && token) {
-    next('/')
+    next('/home')
     return
   }
 
@@ -97,7 +99,7 @@ router.beforeEach((to, from, next) => {
       next()
     } else {
       // 权限不足，跳转到首页
-      next('/')
+      next('/home')
     }
   } else {
     next()

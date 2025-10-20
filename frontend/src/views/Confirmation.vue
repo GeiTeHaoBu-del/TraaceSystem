@@ -95,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getConfirmationPage, confirmRequest, rejectRequest } from '@/api/confirmation'
@@ -186,6 +186,11 @@ const handleRejectSubmit = async () => {
 
 onMounted(() => {
   loadData()
+})
+
+onUnmounted(() => {
+  // 组件卸载时关闭所有对话框
+  rejectDialogVisible.value = false
 })
 </script>
 

@@ -88,7 +88,7 @@
 
         <!-- 主内容区 -->
         <el-main>
-          <router-view />
+          <router-view :key="$route.fullPath" />
         </el-main>
       </el-container>
     </el-container>
