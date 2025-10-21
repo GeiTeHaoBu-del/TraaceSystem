@@ -77,6 +77,8 @@ import { useUserStore } from '@/stores/user'
 import { getBatchPage } from '@/api/batch'
 import { getConfirmationPage } from '@/api/confirmation'
 import { getEnterpriseCertificates } from '@/api/certificate'
+import { getEnterpriseStatistics } from '@/api/enterprise'
+import { getTraceCodePage } from '@/api/traceCode'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -107,14 +109,100 @@ const loadStats = async () => {
       return
     }
 
-    // 系统管理员不需要加载企业相关统计数据
+    // 系统管理员加载全局统计数据
     if (userInfo.value.userType === 0) {
-      // 管理员可以加载全局统计数据
       stats.value[0]!.label = '总批号数'
       stats.value[1]!.label = '总确认请求'
       stats.value[2]!.label = '总企业数'
       stats.value[3]!.label = '总溯源码'
-      // TODO: 可以调用管理员专用的统计接口
+
+      try {
+          const [batchRes, confirmRes, enterpriseStatsRes, traceRes] = await Promise.all([
+            getBatchPage({ pageNum: 1, pageSize: 1 }),
+            getConfirmationPage({ pageNum: 1, pageSize: 1 }),
+            getEnterpriseStatistics(),
+            getTraceCodePage({ pageNum: 1, pageSize: 1 })
+          ])
+
+          // 打印原始API返回数据
+          console.log('API返回数据:', {
+            batchRes,
+            confirmRes,
+            enterpriseStatsRes,
+            traceRes
+          })
+
+          const normalizeTotal = (obj: any) => {
+            console.log('normalizeTotal 处理的数据:', obj)
+            
+            if (!obj) {
+              console.log('数据为空，返回0')
+              return 0
+            }
+            
+            // If it's an object with records array
+            if (Array.isArray(obj.records)) {
+              console.log('找到records数组，长度为:', obj.records.length)
+              // 如果total大于0就用total，否则用records长度
+              if (obj.total && obj.total > 0) {
+                console.log('使用total值:', obj.total)
+                return obj.total
+              }
+              return obj.records.length
+            }
+            
+            // If it's a plain array
+            if (Array.isArray(obj)) {
+              console.log('是普通数组，长度为:', obj.length)
+              return obj.length
+            }
+            
+            // If it's an enterprise statistics object
+            if (typeof obj.total === 'number' && obj.typeStats) {
+              console.log('找到企业统计total:', obj.total)
+              return obj.total
+            }
+            
+            // If it's a wrapper { data: ... }
+            if (obj.data) {
+              console.log('找到data属性，继续处理data内容')
+              return normalizeTotal(obj.data)
+            }
+            
+            // fallback to count property
+            if (typeof obj.count === 'number') {
+              console.log('找到count属性:', obj.count)
+              return obj.count
+            }
+            
+            console.log('未找到任何可用的计数信息，返回0')
+            return 0
+          }
+
+          console.log('开始处理各项统计数据...')
+          
+          const batchTotal = normalizeTotal(batchRes)
+          console.log('批号总数:', batchTotal)
+          
+          const confirmTotal = normalizeTotal(confirmRes)
+          console.log('确认请求总数:', confirmTotal)
+          
+          const enterpriseTotal = (enterpriseStatsRes as any)?.total || normalizeTotal(enterpriseStatsRes)
+          console.log('企业总数:', enterpriseTotal)
+          
+          const traceTotal = normalizeTotal(traceRes)
+          console.log('溯源码总数:', traceTotal)
+
+          stats.value[0]!.value = batchTotal
+          stats.value[1]!.value = confirmTotal
+          stats.value[2]!.value = enterpriseTotal
+          stats.value[3]!.value = traceTotal
+
+          console.log('统计数据更新完成:', stats.value)
+      } catch (e) {
+        console.error('加载管理员统计失败', e)
+      }
+
       return
     }
 
@@ -131,12 +219,25 @@ const loadStats = async () => {
       getEnterpriseCertificates(enterpriseId)
     ])
     
-    // 统一取 AxiosResponse 的 data 字段
+    console.log('企业用户统计数据:', {
+      batchRes,
+      confirmRes,
+      certRes
+    })
+    
+    // 处理批号统计
     const batchData = batchRes.data?.data || batchRes.data || batchRes
+    console.log('处理后的批号数据:', batchData)
+    stats.value[0]!.value = batchData.records?.length || 0
+    
+    // 处理确认请求统计
     const confirmData = confirmRes.data?.data || confirmRes.data || confirmRes
+    console.log('处理后的确认请求数据:', confirmData)
+    stats.value[1]!.value = confirmData.records?.length || 0
+    
+    // 处理证件统计
     const certData = certRes.data || certRes
-    stats.value[0]!.value = batchData.total || 0
-    stats.value[1]!.value = confirmData.total || 0
+    console.log('处理后的证件数据:', certData)
     stats.value[2]!.value = Array.isArray(certData) ? certData.filter((c: any) => c.status === 1).length : 0
   } catch (error) {
     console.error('加载统计数据失败:', error)

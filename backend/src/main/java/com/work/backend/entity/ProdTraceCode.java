@@ -29,6 +29,9 @@ public class ProdTraceCode {
   @TableField(fill = FieldFill.INSERT)
   private LocalDateTime createTime;
 
+  @TableField(exist = false)
+  private String batchNo;
+
   @TableField(fill = FieldFill.INSERT_UPDATE)
   private LocalDateTime updateTime;
 }

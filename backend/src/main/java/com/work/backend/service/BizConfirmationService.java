@@ -19,6 +19,11 @@ public interface BizConfirmationService extends IService<BizConfirmation> {
   boolean confirmRequest(Long confirmId);
 
   /**
+   * 创建已确认的确认记录
+   */
+  boolean createConfirmedRecord(Long initiateEnterpriseId, Long batchId, Long receiveEnterpriseId);
+
+  /**
    * 拒绝请求
    */
   boolean rejectRequest(Long confirmId, String rejectReason);

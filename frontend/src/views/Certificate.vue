@@ -131,10 +131,18 @@ const loadData = async () => {
 
 const loadCertTypes = async () => {
   try {
+    console.log('开始加载证件类型，企业类型:', userInfo.value.userType)
     const res = await getCertificateTypeByEnterpriseType(userInfo.value.userType)
-    certTypeList.value = res.data
-  } catch (error) {
-    console.error(error)
+    console.log('获取到的证件类型数据:', res)
+    certTypeList.value = res.data || res
+  } catch (error: any) {
+    console.error('加载证件类型失败:', error)
+    if (error.response) {
+      console.error('服务器响应:', {
+        status: error.response.status,
+        data: error.response.data
+      })
+    }
   }
 }
 

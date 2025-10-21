@@ -29,6 +29,19 @@ public class BizConfirmationController {
   }
 
   /**
+   * 创建已确认的确认记录
+   */
+  @PostMapping("/confirmed")
+  public Result<String> createConfirmedRecord(@RequestBody Map<String, Object> params) {
+    Long initiateEnterpriseId = Long.valueOf(params.get("initiateEnterpriseId").toString());
+    Long batchId = Long.valueOf(params.get("batchId").toString());
+    Long receiveEnterpriseId = Long.valueOf(params.get("receiveEnterpriseId").toString());
+    
+    boolean success = bizConfirmationService.createConfirmedRecord(initiateEnterpriseId, batchId, receiveEnterpriseId);
+    return success ? Result.success("确认记录创建成功") : Result.error("确认记录创建失败");
+  }
+
+  /**
    * 确认请求
    */
   @PutMapping("/confirm/{confirmId}")

@@ -6,12 +6,14 @@ import com.work.backend.entity.ProdBatch;
 import com.work.backend.service.ProdBatchService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 
 /**
  * 产品批号控制器
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/batch")
 public class ProdBatchController {
@@ -65,8 +67,17 @@ public class ProdBatchController {
       @RequestParam(required = false) Long enterpriseId,
       @RequestParam(required = false) Integer batchStatus) {
 
-    Page<ProdBatch> page = prodBatchService.pageBatch(pageNum, pageSize, enterpriseId, batchStatus);
-    return Result.success(page);
+    log.info("分页查询批号，参数：pageNum={}, pageSize={}, enterpriseId={}, batchStatus={}", 
+             pageNum, pageSize, enterpriseId, batchStatus);
+
+    try {
+      Page<ProdBatch> page = prodBatchService.pageBatch(pageNum, pageSize, enterpriseId, batchStatus);
+      log.info("查询结果：total={}, pages={}, current={}", page.getTotal(), page.getPages(), page.getCurrent());
+      return Result.success(page);
+    } catch (Exception e) {
+      log.error("分页查询批号异常：", e);
+      throw e;
+    }
   }
 
   /**

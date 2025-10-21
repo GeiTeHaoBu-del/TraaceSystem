@@ -28,6 +28,9 @@ public class SysUser {
 
   private Integer status; // 0-禁用，1-正常
 
+  @TableField(exist = false)
+  private String enterpriseName; // 企业名称（非数据库字段）
+
   @TableField(fill = FieldFill.INSERT)
   private LocalDateTime createTime;
 

@@ -1,39 +1,32 @@
 <template>
   <div class="confirmation">
-    <el-tabs v-model="activeTab" @tab-change="loadData">
-      <el-tab-pane label="我发起的" name="initiate">
-        <el-card>
-          <el-table :data="tableData" border v-loading="loading">
-            <el-table-column prop="batchId" label="批号ID" width="100" />
-            <el-table-column prop="confirmStatus" label="状态" width="100">
-              <template #default="{ row }">
-                <el-tag :type="getStatusTag(row.confirmStatus)">
-                  {{ getStatusName(row.confirmStatus) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="initiateTime" label="发起时间" width="160" />
-            <el-table-column prop="confirmTime" label="处理时间" width="160" />
-            <el-table-column prop="rejectReason" label="拒绝原因" min-width="200" show-overflow-tooltip />
-          </el-table>
-
-          <el-pagination
-            v-model:current-page="pagination.pageNum"
-            v-model:page-size="pagination.pageSize"
-            :total="pagination.total"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next, jumper"
-            @size-change="loadData"
-            @current-change="loadData"
-            style="margin-top: 20px; justify-content: flex-end"
-          />
-        </el-card>
-      </el-tab-pane>
-
+    <el-tabs v-model="activeTab">
       <el-tab-pane label="待我确认" name="receive">
         <el-card>
+          <!-- 搜索表单 -->
+          <div class="search-form" style="margin-bottom: 20px;">
+            <el-form :model="searchForm" inline>
+              <el-form-item label="状态">
+                <el-select v-model="searchForm.confirmStatus" placeholder="请选择状态" clearable>
+                  <el-option label="待确认" :value="0" />
+                  <el-option label="已确认" :value="1" />
+                  <el-option label="已拒绝" :value="2" />
+                </el-select>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" @click="loadData">查询</el-button>
+                <el-button @click="resetSearch">重置</el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+
           <el-table :data="tableData" border v-loading="loading">
             <el-table-column prop="batchId" label="批号ID" width="100" />
+            <el-table-column prop="batchCode" label="批次编号" width="120" />
+            <el-table-column prop="productName" label="产品名称" width="120" />
+            <el-table-column prop="quantity" label="数量" width="100" />
+            <el-table-column prop="unit" label="单位" width="80" />
+            <el-table-column prop="initiateEnterpriseName" label="发起企业" width="150" />
             <el-table-column prop="confirmStatus" label="状态" width="100">
               <template #default="{ row }">
                 <el-tag :type="getStatusTag(row.confirmStatus)">
@@ -44,21 +37,28 @@
             <el-table-column prop="initiateTime" label="发起时间" width="160" />
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
+                <el-button-group v-if="row.confirmStatus === 0">
+                  <el-button 
+                    type="success"
+                    size="small"
+                    @click="handleConfirm(row)"
+                  >
+                    确认
+                  </el-button>
+                  <el-button 
+                    type="danger"
+                    size="small"
+                    @click="handleReject(row)"
+                  >
+                    拒绝
+                  </el-button>
+                </el-button-group>
                 <el-button 
-                  link 
-                  type="success" 
-                  @click="handleConfirm(row)"
-                  v-if="row.confirmStatus === 0"
+                  type="primary"
+                  size="small"
+                  @click="viewBatchDetails(row)"
                 >
-                  确认
-                </el-button>
-                <el-button 
-                  link 
-                  type="danger" 
-                  @click="handleReject(row)"
-                  v-if="row.confirmStatus === 0"
-                >
-                  拒绝
+                  查看详情
                 </el-button>
               </template>
             </el-table-column>
@@ -95,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getConfirmationPage, confirmRequest, rejectRequest } from '@/api/confirmation'
@@ -130,19 +130,45 @@ const getStatusTag = (status: number) => {
   return map[status] || ''
 }
 
+// 重置搜索表单
+const resetSearch = () => {
+  searchForm.confirmStatus = null
+  loadData()
+}
+
+// 加载数据
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await getConfirmationPage({
+    console.log('加载待确认的请求数据')
+    
+    // 只查询待确认的请求
+    const params: any = {
       pageNum: pagination.pageNum,
       pageSize: pagination.pageSize,
       receiveEnterpriseId: userInfo.value.enterpriseId,
-      ...searchForm
-    })
-    tableData.value = res.data.records
-    pagination.total = res.data.total
+      confirmStatus: 0 // 只显示待确认的
+    }
+
+    console.log('查询参数:', params)
+    
+    const res = await getConfirmationPage(params)
+    console.log('查询结果:', res)
+    
+    // 格式化数据
+    tableData.value = (res.data?.records || []).map((item: any) => ({
+      ...item,
+      // 添加其他需要的字段处理
+      productName: item.productName || '暂无',
+      quantity: item.quantity || 0,
+      unit: item.unit || '个',
+      batchCode: item.batchCode || '未知'
+    }))
+    pagination.total = res.data?.total || 0
   } catch (error) {
-    console.error(error)
+    console.error('加载确认请求数据失败:', error)
+    tableData.value = []
+    pagination.total = 0
   } finally {
     loading.value = false
   }
@@ -184,7 +210,16 @@ const handleRejectSubmit = async () => {
   }
 }
 
+// 查看批次详情
+const viewBatchDetails = (row: any) => {
+  ElMessage.info('正在开发中')
+  // TODO: 实现查看批次详情的功能
+  console.log('查看批次详情:', row)
+}
+
+// 初始化时加载数据
 onMounted(() => {
+  activeTab.value = 'receive' // 固定为"待我确认"
   loadData()
 })
 
