@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.work.backend.common.Result;
 import com.work.backend.entity.BizConfirmation;
 import com.work.backend.service.BizConfirmationService;
+import com.work.backend.vo.ConfirmationVO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,12 +43,19 @@ public class BizConfirmationController {
   }
 
   /**
-   * 确认请求
+   * 确认请求（并指定下游企业）
    */
   @PutMapping("/confirm/{confirmId}")
-  public Result<String> confirmRequest(@PathVariable Long confirmId) {
-    boolean success = bizConfirmationService.confirmRequest(confirmId);
-    return success ? Result.success("确认成功") : Result.error("确认失败");
+  public Result<String> confirmRequest(@PathVariable Long confirmId, @RequestBody(required = false) Map<String, Object> data) {
+    Long downstreamEnterpriseId = null;
+    if (data != null && data.containsKey("downstreamEnterpriseId")) {
+      Object value = data.get("downstreamEnterpriseId");
+      if (value != null) {
+        downstreamEnterpriseId = Long.valueOf(value.toString());
+      }
+    }
+    boolean success = bizConfirmationService.confirmRequest(confirmId, downstreamEnterpriseId);
+    return success ? Result.success("确认成功，已自动生成您的批号") : Result.error("确认失败");
   }
 
   /**
@@ -61,18 +69,18 @@ public class BizConfirmationController {
   }
 
   /**
-   * 分页查询确认请求列表
+   * 分页查询确认请求列表（带批号信息）
    */
   @GetMapping("/page")
-  public Result<Page<BizConfirmation>> getPage(
+  public Result<Page<ConfirmationVO>> getPage(
       @RequestParam(defaultValue = "1") Integer pageNum,
       @RequestParam(defaultValue = "10") Integer pageSize,
-      @RequestParam(required = false) Long enterpriseId,
-      @RequestParam(required = false) Integer confirmStatus,
-      @RequestParam(required = false) String type) {
+      @RequestParam(required = false) Long receiveEnterpriseId,
+      @RequestParam(required = false) Long initiateEnterpriseId,
+      @RequestParam(required = false) Integer confirmStatus) {
 
-    Page<BizConfirmation> page = bizConfirmationService.pageConfirmation(
-        pageNum, pageSize, enterpriseId, confirmStatus, type);
+    Page<ConfirmationVO> page = bizConfirmationService.pageConfirmationWithBatch(
+        pageNum, pageSize, receiveEnterpriseId, initiateEnterpriseId, confirmStatus);
     return Result.success(page);
   }
 

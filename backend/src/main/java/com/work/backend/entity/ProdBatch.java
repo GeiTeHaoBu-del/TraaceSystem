@@ -24,6 +24,8 @@ public class ProdBatch {
 
   private Long upstreamBatchId;
 
+  private Long downstreamEnterpriseId;
+
   private String productVariety;
 
   private String certNo;

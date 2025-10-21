@@ -103,31 +103,64 @@ const pagination = reactive({
   const loadData = async () => {
     loading.value = true
     try {
+      console.log('=== 开始加载溯源码数据 ===')
+      console.log('当前用户信息:', userInfo.value)
+      console.log('查询参数:', {
+        pageNum: pagination.pageNum,
+        pageSize: pagination.pageSize,
+        enterpriseId: userInfo.value.enterpriseId
+      })
+      
       const res = await getTraceCodePage({
         pageNum: pagination.pageNum,
         pageSize: pagination.pageSize,
         enterpriseId: userInfo.value.enterpriseId
       })
-
-      if (res.data && res.data.data) {
-        // 获取每个溯源码对应的批号信息
-        const records = res.data.data.records || []
-        tableData.value = records.map((item: any) => ({
-          ...item,
-          batchNo: item.batchNo || '未知批号',
-          qrCodeUrl: ''
-        }))
-        pagination.total = res.data.data.total
+      
+      console.log('API完整响应:', res)
+      console.log('res.data:', res.data)
+      
+      // 处理响应数据 - 统一的数据提取逻辑
+      let pageData = null
+      if (res.data && res.data.records) {
+        // 标准格式：res.data.records
+        pageData = res.data
+      } else if (res.records) {
+        // 直接格式：res.records
+        pageData = res
       } else {
-        tableData.value = []
-        pagination.total = 0
+        console.error('无法识别的响应数据格式:', res)
+        pageData = { records: [], total: 0 }
       }
+      
+      console.log('提取的分页数据:', pageData)
+      console.log('记录数组:', pageData.records)
+      console.log('记录总数:', pageData.total)
+      
+      // 格式化数据
+      tableData.value = (pageData.records || []).map((item: any) => {
+        console.log('处理单条溯源码记录:', item)
+        return {
+          ...item,
+          batchNo: item.batchNo || '未知批号'
+        }
+      })
+      pagination.total = pageData.total || 0
+      
+      console.log('最终的表格数据:', tableData.value)
+      console.log('数据条数:', tableData.value.length)
+      console.log('=== 数据加载完成 ===')
     } catch (error) {
       console.error('加载溯源码列表失败:', error)
-  } finally {
-    loading.value = false
+      if (error.response) {
+        console.error('错误响应:', error.response)
+      }
+      tableData.value = []
+      pagination.total = 0
+    } finally {
+      loading.value = false
+    }
   }
-}
 
 const loadBatches = async () => {
   try {

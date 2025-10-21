@@ -18,6 +18,12 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     {
+      path: '/trace-query',
+      name: 'traceQuery',
+      component: () => import('@/views/TraceQuery.vue'),
+      meta: { requiresAuth: false, title: '溯源查询' }
+    },
+    {
       path: '/',
       component: () => import('@/layouts/MainLayout.vue'),
       meta: { requiresAuth: true },
@@ -61,12 +67,6 @@ const router = createRouter({
           name: 'traceCode',
           component: () => import('@/views/TraceCode.vue'),
           meta: { roles: [4], title: '溯源码管理' }
-        },
-        {
-          path: 'trace-query',
-          name: 'traceQuery',
-          component: () => import('@/views/TraceQuery.vue'),
-          meta: { title: '溯源查询' }
         },
         {
           path: 'statistics',

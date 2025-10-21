@@ -7,6 +7,7 @@ import com.work.backend.entity.ProdBatch;
 import com.work.backend.mapper.ProdBatchMapper;
 import com.work.backend.service.ProdBatchService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -20,65 +21,28 @@ import java.util.List;
 public class ProdBatchServiceImpl extends ServiceImpl<ProdBatchMapper, ProdBatch> implements ProdBatchService {
 
   @Override
+  @Transactional
   public boolean createBreedingBatch(ProdBatch batch) {
+    // 验证必须指定下游企业
+    if (batch.getDownstreamEnterpriseId() == null) {
+      throw new RuntimeException("必须指定下游企业");
+    }
+
     // 生成批号：养殖_日期_序号
     String batchNo = generateBatchNo("养殖", batch.getEnterpriseId());
     batch.setBatchNo(batchNo);
-    batch.setBatchStatus(0); // 待发布
+    batch.setBatchStatus(0); // 设置为待发布状态
     batch.setUpstreamBatchId(null); // 养殖企业无上游
+    
+    // 保存批号（不再自动创建确认请求，由前端手动发布后创建）
     return this.save(batch);
   }
 
   @Override
+  @Transactional
   public boolean createDownstreamBatch(ProdBatch batch) {
-    // 验证上游批号是否存在且状态正确
-    if (batch.getUpstreamBatchId() == null) {
-      throw new RuntimeException("必须关联上游批号");
-    }
-
-    ProdBatch upstreamBatch = this.getById(batch.getUpstreamBatchId());
-    if (upstreamBatch == null) {
-      throw new RuntimeException("上游批号不存在");
-    }
-
-    // 检查上游批号的状态
-    // 养殖批号必须是已发布状态
-    if (upstreamBatch.getUpstreamBatchId() == null && upstreamBatch.getBatchStatus() != 1) {
-      throw new RuntimeException("养殖批号必须是已发布状态");
-    }
-    // 其他类型的批号必须是已确认状态
-    else if (upstreamBatch.getUpstreamBatchId() != null && upstreamBatch.getBatchStatus() != 2) {
-      throw new RuntimeException("上游批号必须是已确认状态");
-    }
-
-    // 检查上游批号是否已被使用
-    if (this.count(new LambdaQueryWrapper<ProdBatch>()
-        .eq(ProdBatch::getUpstreamBatchId, upstreamBatch.getBatchId())) > 0) {
-      throw new RuntimeException("该批号已被其他企业使用");
-    }
-
-    // 生成批号
-    String typePrefix = getTypePrefix(batch);
-    String batchNo = generateBatchNo(typePrefix, batch.getEnterpriseId());
-    batch.setBatchNo(batchNo);
-
-    // 创建批号时直接设置为已确认状态
-    batch.setBatchStatus(2); // 已确认状态
-    return this.save(batch);
-  }
-
-  @Override
-  public boolean publishBreedingBatch(Long batchId) {
-    ProdBatch batch = this.getById(batchId);
-    if (batch == null) {
-      throw new RuntimeException("批号不存在");
-    }
-    if (batch.getBatchStatus() != 0) {
-      throw new RuntimeException("只能发布待发布状态的批号");
-    }
-
-    batch.setBatchStatus(1); // 已发布
-    return this.updateById(batch);
+    // 这个方法现在不再使用，因为下游批号由确认时自动创建
+    throw new RuntimeException("下游批号应由确认请求自动创建，不应手动创建");
   }
 
   @Override
@@ -111,27 +75,26 @@ public class ProdBatchServiceImpl extends ServiceImpl<ProdBatchMapper, ProdBatch
   }
 
   @Override
-  public List<ProdBatch> getAvailableUpstreamBatches(Integer enterpriseType) {
-    // 根据企业类型获取可关联的上游批号
-    // 屠宰->养殖(已发布), 批发->屠宰(已确认), 零售->批发(已确认)
+  public List<ProdBatch> getAvailableUpstreamBatches(Long currentEnterpriseId) {
+    // 查找指定了当前企业为下游企业的已发布批号，且未被使用的
     LambdaQueryWrapper<ProdBatch> wrapper = new LambdaQueryWrapper<>();
 
-    if (enterpriseType == 2) { // 屠宰找养殖企业的已发布批号
-      wrapper.eq(ProdBatch::getBatchStatus, 1) // 已发布
-          .isNull(ProdBatch::getUpstreamBatchId) // 养殖批号（无上游）
-          .notExists("SELECT 1 FROM prod_batch pb WHERE pb.upstream_batch_id = prod_batch.batch_id"); // 排除已被关联的批号
-    } else if (enterpriseType == 3) { // 批发找屠宰企业的已确认批号
-      wrapper.eq(ProdBatch::getBatchStatus, 2) // 已确认
-          .likeRight(ProdBatch::getBatchNo, "屠宰") // 屠宰企业的批号
-          .notExists("SELECT 1 FROM prod_batch pb WHERE pb.upstream_batch_id = prod_batch.batch_id");
-    } else if (enterpriseType == 4) { // 零售找批发企业的已确认批号
-      wrapper.eq(ProdBatch::getBatchStatus, 2) // 已确认
-          .likeRight(ProdBatch::getBatchNo, "批发") // 批发企业的批号
-          .notExists("SELECT 1 FROM prod_batch pb WHERE pb.upstream_batch_id = prod_batch.batch_id");
+    wrapper.eq(ProdBatch::getBatchStatus, 1) // 已发布
+        .eq(ProdBatch::getDownstreamEnterpriseId, currentEnterpriseId); // 指定了当前企业为下游
+
+    // 只返回还没有被创建下游批号的上游批号
+    List<ProdBatch> allBatches = this.list(wrapper);
+    List<ProdBatch> availableBatches = new ArrayList<>();
+    
+    for (ProdBatch batch : allBatches) {
+      long count = this.count(new LambdaQueryWrapper<ProdBatch>()
+          .eq(ProdBatch::getUpstreamBatchId, batch.getBatchId()));
+      if (count == 0) {
+        availableBatches.add(batch);
+      }
     }
 
-    wrapper.orderByDesc(ProdBatch::getCreateTime);
-    return this.list(wrapper);
+    return availableBatches;
   }
 
   @Override

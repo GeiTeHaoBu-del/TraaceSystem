@@ -23,10 +23,34 @@
           />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" size="large" :loading="loading" @click="handleLogin" style="width: 48%; margin-right: 4%">登录</el-button>
-          <el-button type="default" size="large" @click="goRegister" style="width: 48%">注册</el-button>
+          <div class="button-group">
+            <el-button type="primary" size="large" :loading="loading" @click="handleLogin">
+              登录
+            </el-button>
+            <el-button size="large" @click="goRegister">
+              注册
+            </el-button>
+          </div>
         </el-form-item>
       </el-form>
+      
+      <!-- 分隔线 -->
+      <el-divider>或</el-divider>
+      
+      <!-- 客户查询入口 -->
+      <div class="customer-query">
+        <el-button 
+          type="success" 
+          size="large" 
+          @click="goTraceQuery"
+          plain
+          style="width: 100%"
+        >
+          <el-icon style="margin-right: 8px"><Search /></el-icon>
+          客户查询（溯源码查询）
+        </el-button>
+        <p class="query-tip">无需登录，直接查询产品溯源信息</p>
+      </div>
     </div>
   </div>
 </template>
@@ -37,6 +61,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { login } from '@/api/user'
 import { ElMessage } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -58,16 +83,12 @@ const handleLogin = async () => {
   loading.value = true
   try {
     const response = await login(loginForm.value)
-    // response 已经是解包后的数据 (response拦截器返回了 res.data)
-    // 后端返回格式: { code: 200, data: { token: '', userInfo: {} }, message: '' }
-    // 响应拦截器返回了 res.data，所以 response 就是 { token: '', userInfo: {} }
     
     userStore.setToken(response.token)
     userStore.setUserInfo(response.userInfo)
     
     ElMessage.success('登录成功')
     
-    // 使用 router.push 跳转到首页
     await router.push('/')
   } catch (error: any) {
     ElMessage.error(error.message || '登录失败')
@@ -79,6 +100,10 @@ const handleLogin = async () => {
 
 const goRegister = () => {
   router.push('/register')
+}
+
+const goTraceQuery = () => {
+  router.push('/trace-query')
 }
 </script>
 
@@ -92,7 +117,7 @@ const goRegister = () => {
 }
 
 .login-box {
-  width: 400px;
+  width: 420px;
   padding: 40px;
   background: #fff;
   border-radius: 10px;
@@ -108,5 +133,30 @@ const goRegister = () => {
 
 .login-form {
   margin-top: 20px;
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  
+  .el-button {
+    flex: 1;
+  }
+}
+
+.customer-query {
+  margin-top: 20px;
+  text-align: center;
+  
+  .query-tip {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #909399;
+  }
+}
+
+.el-divider {
+  margin: 20px 0;
 }
 </style>

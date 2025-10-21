@@ -1,5 +1,3 @@
-import { createConfirmedRecord } from '@/api/confirmation'
-
 <template>
   <div class="batch">
     <el-card>
@@ -33,6 +31,7 @@ import { createConfirmedRecord } from '@/api/confirmation'
         <el-table-column prop="batchNo" label="批号" width="180" />
         <el-table-column prop="productVariety" label="产品品种" width="100" />
         <el-table-column prop="certNo" label="证件编号" width="150" />
+        <el-table-column prop="downstreamEnterpriseName" label="指定下游企业" width="150" v-if="userInfo.userType !== 4" />
         <el-table-column prop="batchStatus" label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="getBatchStatusTag(row.batchStatus)">
@@ -43,7 +42,6 @@ import { createConfirmedRecord } from '@/api/confirmation'
         <el-table-column prop="createTime" label="创建时间" width="160" />
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleTrace(row)">溯源</el-button>
             <el-button 
               link 
               type="success" 
@@ -52,7 +50,7 @@ import { createConfirmedRecord } from '@/api/confirmation'
             >
               发布
             </el-button>
-            <!-- 移除了发起确认按钮，因为创建批号时会自动变为待确认状态 -->
+            <el-button link type="primary" @click="handleTrace(row)">溯源</el-button>
             <el-button 
               link 
               type="info" 
@@ -88,7 +86,7 @@ import { createConfirmedRecord } from '@/api/confirmation'
 
     <!-- 创建批号对话框 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
-      <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px">
+      <el-form :model="form" :rules="formRules" ref="formRef" label-width="120px">
         <el-form-item label="上游批号" prop="upstreamBatchId" v-if="userInfo.userType !== 1">
           <el-select v-model="form.upstreamBatchId" placeholder="请选择上游批号" @focus="loadUpstreamBatches">
             <el-option
@@ -96,6 +94,16 @@ import { createConfirmedRecord } from '@/api/confirmation'
               :key="item.batchId"
               :label="item.batchNo"
               :value="item.batchId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="指定下游企业" prop="downstreamEnterpriseId">
+          <el-select v-model="form.downstreamEnterpriseId" placeholder="请选择下游企业" @focus="loadDownstreamEnterprises">
+            <el-option
+              v-for="item in downstreamEnterprises"
+              :key="item.enterpriseId"
+              :label="item.enterpriseName"
+              :value="item.enterpriseId"
             />
           </el-select>
         </el-form-item>
@@ -147,6 +155,7 @@ import {
 } from '@/api/batch'
 import { initiateConfirmation } from '@/api/confirmation'
 import { generateTraceCode } from '@/api/traceCode'
+import { getEnterpriseList } from '@/api/enterprise'
 
 const userStore = useUserStore()
 const userInfo = computed(() => userStore.userInfo)
@@ -155,8 +164,10 @@ const loading = ref(false)
 const tableData = ref([])
 const dialogVisible = ref(false)
 const traceDialogVisible = ref(false)
+const publishDialogVisible = ref(false)
 const dialogTitle = ref('创建批号')
 const formRef = ref()
+const publishFormRef = ref()
 interface BatchItem {
   batchId: number
   batchNo: string
@@ -171,6 +182,7 @@ interface BatchItem {
 
 const upstreamBatches = ref<BatchItem[]>([])
 const traceList = ref<BatchItem[]>([])
+const downstreamEnterprises = ref([])
 
 const searchForm = reactive({
   batchStatus: null
@@ -184,12 +196,14 @@ const pagination = reactive({
 
 const form = reactive({
   upstreamBatchId: null,
+  downstreamEnterpriseId: null as number | null,
   productVariety: '',
   certNo: ''
 })
 
 const formRules = {
   upstreamBatchId: [{ required: true, message: '请选择上游批号', trigger: 'change' }],
+  downstreamEnterpriseId: [{ required: true, message: '请选择下游企业', trigger: 'change' }],
   productVariety: [{ required: true, message: '请输入产品品种', trigger: 'blur' }],
   certNo: [{ required: true, message: '请输入证件编号', trigger: 'blur' }]
 }
@@ -287,10 +301,60 @@ const loadUpstreamBatches = async () => {
   }
 }
 
+const loadDownstreamEnterprises = async () => {
+  try {
+    console.log('开始加载下游企业，当前企业类型:', userInfo.value.userType)
+    
+    // 根据当前企业类型确定下游企业类型
+    let targetType = 0
+    if (userInfo.value.userType === 1) {
+      targetType = 2 // 养殖企业 -> 屠宰企业
+    } else if (userInfo.value.userType === 2) {
+      targetType = 3 // 屠宰企业 -> 批发企业
+    } else if (userInfo.value.userType === 3) {
+      targetType = 4 // 批发企业 -> 零售企业
+    } else {
+      console.log('零售企业不需要指定下游企业')
+      downstreamEnterprises.value = []
+      return
+    }
+    
+    console.log('目标下游企业类型:', targetType)
+    
+    // 使用 enterpriseType 参数调用 API，后端会自动过滤
+    const res = await getEnterpriseList({ enterpriseType: targetType })
+    console.log('企业列表API完整响应:', res)
+    
+    // 处理响应数据 - 统一的数据提取逻辑
+    let enterprises = []
+    if (res.data) {
+      enterprises = res.data
+    } else if (Array.isArray(res)) {
+      enterprises = res
+    } else {
+      console.error('无法解析企业列表响应:', res)
+    }
+    
+    console.log('解析后的企业列表:', enterprises)
+    console.log('企业数量:', enterprises.length)
+    
+    downstreamEnterprises.value = enterprises
+    
+    if (downstreamEnterprises.value.length === 0) {
+      ElMessage.warning(`暂无可用的下游企业（企业类型：${targetType}）`)
+    }
+  } catch (error) {
+    console.error('加载下游企业失败:', error)
+    ElMessage.error('加载下游企业列表失败')
+    downstreamEnterprises.value = []
+  }
+}
+
 const handleAdd = () => {
   dialogTitle.value = '创建批号'
   Object.assign(form, {
     upstreamBatchId: null,
+    downstreamEnterpriseId: null,
     productVariety: '',
     certNo: ''
   })
@@ -304,42 +368,18 @@ const handleSubmit = async () => {
       enterpriseId: userInfo.value.enterpriseId,
       ...form
     }
-    let batchId
+    
+    // 养殖企业创建批号
     if (userInfo.value.userType === 1) {
-      const res = await createBreedingBatch(data)
-      batchId = res.data
+      await createBreedingBatch(data)
+      ElMessage.success('批号创建成功，请发布后发起确认请求')
     } else {
-      const res = await createDownstreamBatch(data)
-      batchId = res.data
-      // 如果是批发商或零售商，需要创建一个已确认的确认记录
-      if (userInfo.value.userType === 2 || userInfo.value.userType === 3) {
-        const upstreamBatch = upstreamBatches.value.find(b => b.batchId === form.upstreamBatchId)
-        if (upstreamBatch) {
-          await createConfirmedRecord({
-            initiateEnterpriseId: userInfo.value.enterpriseId,
-            batchId: batchId,
-            receiveEnterpriseId: upstreamBatch.enterpriseId
-          })
-        }
-      }
+      // 其他企业不应该手动创建批号
+      ElMessage.error('下游批号应由确认请求自动生成')
+      return
     }
-    ElMessage.success('创建成功')
+    
     dialogVisible.value = false
-    loadData()
-  } catch (error) {
-    console.error(error)
-  }
-}
-
-const handlePublish = async (row: any) => {
-  try {
-    await ElMessageBox.confirm('确定要发布该批号吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    await publishBatch(row.batchId)
-    ElMessage.success('发布成功')
     loadData()
   } catch (error) {
     console.error(error)
@@ -404,6 +444,21 @@ const handleTrace = async (row: any) => {
   }
 }
 
+const handlePublish = async (row: any) => {
+  try {
+    await ElMessageBox.confirm('确定要发布该批号吗？发布后将自动发起确认请求', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await publishBatch(row.batchId)
+    ElMessage.success('发布成功，已自动发起确认请求')
+    loadData()
+  } catch (error) {
+    console.error(error)
+  }
+}
+
 onMounted(() => {
   loadData()
 })
@@ -413,6 +468,7 @@ onUnmounted(() => {
   // 关闭所有对话框
   dialogVisible.value = false
   traceDialogVisible.value = false
+  publishDialogVisible.value = false
   // 停止加载状态
   loading.value = false
 })

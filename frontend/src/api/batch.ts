@@ -43,10 +43,10 @@ export function offlineBatch(batchId: number) {
   })
 }
 
-// 获取可关联的上游批号
-export function getAvailableUpstreamBatches(enterpriseType: number) {
+// 获取可关联的上游批号（指定了当前企业的批号）
+export function getAvailableUpstreamBatches(currentEnterpriseId: number) {
   return request({
-    url: `/batch/available-upstream/${enterpriseType}`,
+    url: `/batch/available-upstream/${currentEnterpriseId}`,
     method: 'get'
   })
 }

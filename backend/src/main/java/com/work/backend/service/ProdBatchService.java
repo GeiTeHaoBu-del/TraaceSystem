@@ -20,11 +20,6 @@ public interface ProdBatchService extends IService<ProdBatch> {
   boolean createDownstreamBatch(ProdBatch batch);
 
   /**
-   * 发布养殖批号
-   */
-  boolean publishBreedingBatch(Long batchId);
-
-  /**
    * 批号下架
    */
   boolean offlineBatch(Long batchId);
@@ -35,9 +30,9 @@ public interface ProdBatchService extends IService<ProdBatch> {
   Page<ProdBatch> pageBatch(int pageNum, int pageSize, Long enterpriseId, Integer batchStatus);
 
   /**
-   * 获取可关联的上游批号列表
+   * 获取可关联的上游批号列表（指定了当前企业的批号）
    */
-  List<ProdBatch> getAvailableUpstreamBatches(Integer enterpriseType);
+  List<ProdBatch> getAvailableUpstreamBatches(Long currentEnterpriseId);
 
   /**
    * 溯源查询

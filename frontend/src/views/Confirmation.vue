@@ -22,10 +22,9 @@
 
           <el-table :data="tableData" border v-loading="loading">
             <el-table-column prop="batchId" label="批号ID" width="100" />
-            <el-table-column prop="batchCode" label="批次编号" width="120" />
-            <el-table-column prop="productName" label="产品名称" width="120" />
-            <el-table-column prop="quantity" label="数量" width="100" />
-            <el-table-column prop="unit" label="单位" width="80" />
+            <el-table-column prop="batchNo" label="批次编号" width="180" />
+            <el-table-column prop="productVariety" label="产品名称" width="120" />
+            <el-table-column prop="certNo" label="证件编号" width="150" />
             <el-table-column prop="initiateEnterpriseName" label="发起企业" width="150" />
             <el-table-column prop="confirmStatus" label="状态" width="100">
               <template #default="{ row }">
@@ -78,6 +77,45 @@
       </el-tab-pane>
     </el-tabs>
 
+    <!-- 确认对话框 - 需要指定下游企业 -->
+    <el-dialog v-model="confirmDialogVisible" title="确认批号" width="500px">
+      <el-form :model="confirmForm" :rules="confirmRules" ref="confirmFormRef" label-width="120px">
+        <el-form-item label="批号信息">
+          <div style="color: #606266;">
+            <p>批号: {{ currentBatch?.batchNo }}</p>
+            <p>产品品种: {{ currentBatch?.productVariety }}</p>
+            <p>发起企业: {{ currentBatch?.initiateEnterpriseName }}</p>
+          </div>
+        </el-form-item>
+        <el-form-item label="指定下游企业" prop="downstreamEnterpriseId" v-if="!isRetailEnterprise">
+          <el-select 
+            v-model="confirmForm.downstreamEnterpriseId" 
+            placeholder="请选择下游企业" 
+            @focus="loadDownstreamEnterprises"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in downstreamEnterprises"
+              :key="item.enterpriseId"
+              :label="item.enterpriseName"
+              :value="item.enterpriseId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-alert 
+          v-if="isRetailEnterprise"
+          title="您是零售企业，确认后将自动生成溯源码"
+          type="info"
+          :closable="false"
+          style="margin-top: 10px"
+        />
+      </el-form>
+      <template #footer>
+        <el-button @click="confirmDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleConfirmSubmit">确认</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 拒绝原因对话框 -->
     <el-dialog v-model="rejectDialogVisible" title="拒绝原因" width="400px">
       <el-input
@@ -99,6 +137,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getConfirmationPage, confirmRequest, rejectRequest } from '@/api/confirmation'
+import { getEnterpriseList } from '@/api/enterprise'
 
 const userStore = useUserStore()
 const userInfo = computed(() => userStore.userInfo)
@@ -129,7 +168,6 @@ const getStatusTag = (status: number) => {
   const map: any = { 0: 'warning', 1: 'success', 2: 'danger' }
   return map[status] || ''
 }
-
 // 重置搜索表单
 const resetSearch = () => {
   searchForm.confirmStatus = null
@@ -140,33 +178,62 @@ const resetSearch = () => {
 const loadData = async () => {
   loading.value = true
   try {
-    console.log('加载待确认的请求数据')
+    console.log('=== 开始加载确认请求数据 ===')
+    console.log('当前用户信息:', userInfo.value)
     
-    // 只查询待确认的请求
+    // 查询指定给当前企业的确认请求
     const params: any = {
       pageNum: pagination.pageNum,
       pageSize: pagination.pageSize,
       receiveEnterpriseId: userInfo.value.enterpriseId,
-      confirmStatus: 0 // 只显示待确认的
+      confirmStatus: searchForm.confirmStatus // 不要使用默认值，让用户选择
     }
 
     console.log('查询参数:', params)
     
     const res = await getConfirmationPage(params)
-    console.log('查询结果:', res)
+    console.log('API完整响应:', res)
+    console.log('响应数据类型:', typeof res)
+    console.log('res.data:', res.data)
     
-    // 格式化数据
-    tableData.value = (res.data?.records || []).map((item: any) => ({
-      ...item,
-      // 添加其他需要的字段处理
-      productName: item.productName || '暂无',
-      quantity: item.quantity || 0,
-      unit: item.unit || '个',
-      batchCode: item.batchCode || '未知'
-    }))
-    pagination.total = res.data?.total || 0
+    // 处理响应数据 - 统一的数据提取逻辑
+    let pageData = null
+    if (res.data && res.data.records) {
+      // 标准格式：res.data.records
+      pageData = res.data
+    } else if (res.records) {
+      // 直接格式：res.records
+      pageData = res
+    } else {
+      console.error('无法识别的响应数据格式:', res)
+      pageData = { records: [], total: 0 }
+    }
+    
+    console.log('提取的分页数据:', pageData)
+    console.log('记录数组:', pageData.records)
+    console.log('记录总数:', pageData.total)
+    
+    // 格式化数据 - 从批号信息中提取数据
+    tableData.value = (pageData.records || []).map((item: any) => {
+      console.log('处理单条记录:', item)
+      return {
+        ...item,
+        batchCode: item.batchNo || '未知',
+        productName: item.productVariety || '暂无',
+        quantity: item.quantity || '-',
+        unit: item.unit || '-'
+      }
+    })
+    pagination.total = pageData.total || 0
+    
+    console.log('最终的表格数据:', tableData.value)
+    console.log('数据条数:', tableData.value.length)
+    console.log('=== 数据加载完成 ===')
   } catch (error) {
     console.error('加载确认请求数据失败:', error)
+    if (error.response) {
+      console.error('错误响应:', error.response)
+    }
     tableData.value = []
     pagination.total = 0
   } finally {
@@ -174,15 +241,102 @@ const loadData = async () => {
   }
 }
 
-const handleConfirm = async (row: any) => {
+const confirmDialogVisible = ref(false)
+const currentBatch = ref<any>(null)
+const downstreamEnterprises = ref([])
+const confirmFormRef = ref()
+
+const confirmForm = reactive({
+  downstreamEnterpriseId: null as number | null
+})
+
+const confirmRules = {
+  downstreamEnterpriseId: [{ required: true, message: '请选择下游企业', trigger: 'change' }]
+}
+
+const isRetailEnterprise = computed(() => {
+  return userInfo.value.userType === 4 // 零售企业
+})
+
+const loadDownstreamEnterprises = async () => {
   try {
-    await ElMessageBox.confirm('确定要确认该请求吗？', '提示', {
+    console.log('开始加载下游企业，当前企业类型:', userInfo.value.userType)
+    
+    // 根据当前企业类型确定下游企业类型
+    let targetType = 0
+    if (userInfo.value.userType === 2) {
+      targetType = 3 // 屠宰企业 -> 批发企业
+    } else if (userInfo.value.userType === 3) {
+      targetType = 4 // 批发企业 -> 零售企业
+    } else {
+      console.log('零售企业不需要指定下游企业')
+      downstreamEnterprises.value = []
+      return
+    }
+    
+    console.log('目标下游企业类型:', targetType)
+    
+    const res = await getEnterpriseList({ enterpriseType: targetType })
+    console.log('企业列表API响应:', res)
+    
+    let enterprises = []
+    if (res.data) {
+      enterprises = res.data
+    } else if (Array.isArray(res)) {
+      enterprises = res
+    }
+    
+    downstreamEnterprises.value = enterprises
+    console.log('下游企业列表:', downstreamEnterprises.value)
+    
+    if (downstreamEnterprises.value.length === 0) {
+      ElMessage.warning(`暂无可用的下游企业（企业类型：${targetType}）`)
+    }
+  } catch (error) {
+    console.error('加载下游企业失败:', error)
+    ElMessage.error('加载下游企业列表失败')
+    downstreamEnterprises.value = []
+  }
+}
+
+const handleConfirm = async (row: any) => {
+  currentBatch.value = row
+  confirmForm.downstreamEnterpriseId = null
+  
+  // 如果是零售企业，直接显示确认对话框，不需要选择下游企业
+  if (isRetailEnterprise.value) {
+    confirmDialogVisible.value = true
+  } else {
+    // 非零售企业需要先加载下游企业列表
+    await loadDownstreamEnterprises()
+    confirmDialogVisible.value = true
+  }
+}
+
+const handleConfirmSubmit = async () => {
+  // 如果不是零售企业，需要验证表单
+  if (!isRetailEnterprise.value) {
+    try {
+      await confirmFormRef.value.validate()
+    } catch (error) {
+      return
+    }
+  }
+  
+  try {
+    await ElMessageBox.confirm('确定要确认该请求吗？确认后将自动生成您的批号', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
-    await confirmRequest(row.confirmId)
-    ElMessage.success('确认成功')
+    
+    // 调用确认API，传递下游企业ID
+    await confirmRequest(currentBatch.value.confirmId, {
+      downstreamEnterpriseId: confirmForm.downstreamEnterpriseId
+    })
+    
+    ElMessage.success('确认成功，已自动生成您的批号')
+    confirmDialogVisible.value = false
     loadData()
   } catch (error) {
     console.error(error)

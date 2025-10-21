@@ -9,11 +9,12 @@ export function initiateConfirmation(data: any) {
   })
 }
 
-// 确认请求
-export function confirmRequest(confirmId: number) {
+// 确认请求（并指定下游企业）
+export function confirmRequest(confirmId: number, data?: any) {
   return request({
     url: `/confirmation/confirm/${confirmId}`,
-    method: 'put'
+    method: 'put',
+    data: data || {}
   })
 }
 
