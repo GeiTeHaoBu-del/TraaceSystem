@@ -15,7 +15,7 @@
         >
           <el-menu-item index="/home">
             <el-icon><HomeFilled /></el-icon>
-            <span>首页</span>
+            <span>{{ userInfo?.userType === 0 ? '管理账户' : (userInfo?.enterpriseName || '首页') }}</span>
           </el-menu-item>
           
           <!-- 系统管理员菜单 -->
@@ -40,10 +40,12 @@
               <el-icon><Box /></el-icon>
               <span>批号管理</span>
             </el-menu-item>
-            <el-menu-item index="/confirmation">
+            <!-- 非养殖企业才显示确认请求菜单 -->
+            <el-menu-item index="/confirmation" v-if="userInfo.userType !== 1">
               <el-icon><Select /></el-icon>
               <span>确认请求</span>
             </el-menu-item>
+            <!-- 零售企业才显示溯源码管理菜单 -->
             <el-menu-item index="/trace-code" v-if="userInfo.userType === 4">
               <el-icon><Postcard /></el-icon>
               <span>溯源码管理</span>
@@ -64,7 +66,7 @@
           <div class="header-content">
             <div class="breadcrumb">
               <el-breadcrumb separator="/">
-                <el-breadcrumb-item :to="{ path: '/home' }">首页</el-breadcrumb-item>
+                <el-breadcrumb-item :to="{ path: '/home' }">{{ userInfo?.userType === 0 ? '管理账户' : (userInfo?.enterpriseName || '首页') }}</el-breadcrumb-item>
                 <el-breadcrumb-item>{{ $route.meta.title }}</el-breadcrumb-item>
               </el-breadcrumb>
             </div>
@@ -190,6 +192,7 @@ const handlePasswordSubmit = async () => {
 
 onMounted(() => {
   userStore.initUserInfo()
+  console.log('User Info:', userStore.userInfo)
 })
 </script>
 

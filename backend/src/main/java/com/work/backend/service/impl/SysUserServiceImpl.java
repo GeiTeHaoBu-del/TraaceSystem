@@ -3,9 +3,12 @@ package com.work.backend.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.work.backend.entity.SysUser;
+import com.work.backend.entity.SysEnterprise;
 import com.work.backend.mapper.SysUserMapper;
 import com.work.backend.service.SysUserService;
+import com.work.backend.service.SysEnterpriseService;
 import cn.hutool.crypto.digest.BCrypt;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -13,6 +16,18 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> implements SysUserService {
+
+  @Autowired
+  private SysEnterpriseService sysEnterpriseService;
+
+  @Override
+  public String getEnterpriseName(Long enterpriseId) {
+    if (enterpriseId == null) {
+      return null;
+    }
+    SysEnterprise enterprise = sysEnterpriseService.getById(enterpriseId);
+    return enterprise != null ? enterprise.getEnterpriseName() : null;
+  }
 
   @Override
   public SysUser getByLoginCode(String loginCode) {

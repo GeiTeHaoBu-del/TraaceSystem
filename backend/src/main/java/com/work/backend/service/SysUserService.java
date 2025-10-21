@@ -21,4 +21,9 @@ public interface SysUserService extends IService<SysUser> {
    * 注册企业用户
    */
   boolean registerEnterpriseUser(SysUser user);
+
+  /**
+   * 获取企业名称
+   */
+  String getEnterpriseName(Long enterpriseId);
 }

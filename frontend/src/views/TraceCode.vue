@@ -84,20 +84,46 @@ const pagination = reactive({
   total: 0
 })
 
-const loadData = async () => {
-  loading.value = true
-  try {
-    const res = await getTraceCodePage({
-      pageNum: pagination.pageNum,
-      pageSize: pagination.pageSize
-    })
-    tableData.value = res.data.records.map((item: any) => ({
-      ...item,
-      qrCodeUrl: ''
-    }))
-    pagination.total = res.data.total
-  } catch (error) {
-    console.error(error)
+  // 获取批号信息
+  const getBatchInfo = async (batchId: number) => {
+    try {
+      const res = await getBatchPage({
+        pageNum: 1,
+        pageSize: 1,
+        enterpriseId: userInfo.value.enterpriseId,
+        batchId: batchId
+      })
+      return res.data.records[0] || null
+    } catch (error) {
+      console.error('获取批号信息失败:', error)
+      return null
+    }
+  }
+
+  const loadData = async () => {
+    loading.value = true
+    try {
+      const res = await getTraceCodePage({
+        pageNum: pagination.pageNum,
+        pageSize: pagination.pageSize,
+        enterpriseId: userInfo.value.enterpriseId
+      })
+
+      if (res.data && res.data.data) {
+        // 获取每个溯源码对应的批号信息
+        const records = res.data.data.records || []
+        tableData.value = records.map((item: any) => ({
+          ...item,
+          batchNo: item.batchNo || '未知批号',
+          qrCodeUrl: ''
+        }))
+        pagination.total = res.data.data.total
+      } else {
+        tableData.value = []
+        pagination.total = 0
+      }
+    } catch (error) {
+      console.error('加载溯源码列表失败:', error)
   } finally {
     loading.value = false
   }
@@ -111,9 +137,14 @@ const loadBatches = async () => {
       enterpriseId: userInfo.value.enterpriseId,
       batchStatus: 2
     })
-    batchList.value = res.data.records
+    if (res.data && res.data.data) {
+      batchList.value = res.data.data.records || []
+    } else {
+      batchList.value = []
+    }
   } catch (error) {
     console.error(error)
+    batchList.value = []
   }
 }
 

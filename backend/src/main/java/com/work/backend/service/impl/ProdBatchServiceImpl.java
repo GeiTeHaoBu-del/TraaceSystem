@@ -31,7 +31,7 @@ public class ProdBatchServiceImpl extends ServiceImpl<ProdBatchMapper, ProdBatch
 
   @Override
   public boolean createDownstreamBatch(ProdBatch batch) {
-    // 验证上游批号是否存在且已确认
+    // 验证上游批号是否存在且状态正确
     if (batch.getUpstreamBatchId() == null) {
       throw new RuntimeException("必须关联上游批号");
     }
@@ -41,12 +41,29 @@ public class ProdBatchServiceImpl extends ServiceImpl<ProdBatchMapper, ProdBatch
       throw new RuntimeException("上游批号不存在");
     }
 
+    // 检查上游批号的状态
+    // 养殖批号必须是已发布状态
+    if (upstreamBatch.getUpstreamBatchId() == null && upstreamBatch.getBatchStatus() != 1) {
+      throw new RuntimeException("养殖批号必须是已发布状态");
+    }
+    // 其他类型的批号必须是已确认状态
+    else if (upstreamBatch.getUpstreamBatchId() != null && upstreamBatch.getBatchStatus() != 2) {
+      throw new RuntimeException("上游批号必须是已确认状态");
+    }
+
+    // 检查上游批号是否已被使用
+    if (this.count(new LambdaQueryWrapper<ProdBatch>()
+        .eq(ProdBatch::getUpstreamBatchId, upstreamBatch.getBatchId())) > 0) {
+      throw new RuntimeException("该批号已被其他企业使用");
+    }
+
     // 生成批号
     String typePrefix = getTypePrefix(batch);
     String batchNo = generateBatchNo(typePrefix, batch.getEnterpriseId());
     batch.setBatchNo(batchNo);
-    batch.setBatchStatus(0); // 新建
 
+    // 创建批号时直接设置为已确认状态
+    batch.setBatchStatus(2); // 已确认状态
     return this.save(batch);
   }
 
@@ -99,11 +116,18 @@ public class ProdBatchServiceImpl extends ServiceImpl<ProdBatchMapper, ProdBatch
     // 屠宰->养殖(已发布), 批发->屠宰(已确认), 零售->批发(已确认)
     LambdaQueryWrapper<ProdBatch> wrapper = new LambdaQueryWrapper<>();
 
-    if (enterpriseType == 2) { // 屠宰
+    if (enterpriseType == 2) { // 屠宰找养殖企业的已发布批号
       wrapper.eq(ProdBatch::getBatchStatus, 1) // 已发布
-          .isNull(ProdBatch::getUpstreamBatchId); // 养殖批号
-    } else if (enterpriseType == 3 || enterpriseType == 4) { // 批发或零售
-      wrapper.eq(ProdBatch::getBatchStatus, 2); // 已确认
+          .isNull(ProdBatch::getUpstreamBatchId) // 养殖批号（无上游）
+          .notExists("SELECT 1 FROM prod_batch pb WHERE pb.upstream_batch_id = prod_batch.batch_id"); // 排除已被关联的批号
+    } else if (enterpriseType == 3) { // 批发找屠宰企业的已确认批号
+      wrapper.eq(ProdBatch::getBatchStatus, 2) // 已确认
+          .likeRight(ProdBatch::getBatchNo, "屠宰") // 屠宰企业的批号
+          .notExists("SELECT 1 FROM prod_batch pb WHERE pb.upstream_batch_id = prod_batch.batch_id");
+    } else if (enterpriseType == 4) { // 零售找批发企业的已确认批号
+      wrapper.eq(ProdBatch::getBatchStatus, 2) // 已确认
+          .likeRight(ProdBatch::getBatchNo, "批发") // 批发企业的批号
+          .notExists("SELECT 1 FROM prod_batch pb WHERE pb.upstream_batch_id = prod_batch.batch_id");
     }
 
     wrapper.orderByDesc(ProdBatch::getCreateTime);

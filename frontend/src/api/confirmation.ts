@@ -17,6 +17,15 @@ export function confirmRequest(confirmId: number) {
   })
 }
 
+// 创建已确认记录
+export function createConfirmedRecord(data: any) {
+  return request({
+    url: '/confirmation/confirmed',
+    method: 'post',
+    data
+  })
+}
+
 // 拒绝请求
 export function rejectRequest(confirmId: number, rejectReason: string) {
   return request({

@@ -1,3 +1,5 @@
+import { createConfirmedRecord } from '@/api/confirmation'
+
 <template>
   <div class="batch">
     <el-card>
@@ -50,19 +52,12 @@
             >
               发布
             </el-button>
-            <el-button 
-              link 
-              type="warning" 
-              @click="handleInitiateConfirm(row)"
-              v-if="userInfo.userType !== 1 && row.batchStatus === 0"
-            >
-              发起确认
-            </el-button>
+            <!-- 移除了发起确认按钮，因为创建批号时会自动变为待确认状态 -->
             <el-button 
               link 
               type="info" 
               @click="handleGenerateCode(row)"
-              v-if="userInfo.userType === 4 && row.batchStatus === 2"
+              v-if="userInfo.userType === 4"
             >
               生成溯源码
             </el-button>
@@ -162,8 +157,20 @@ const dialogVisible = ref(false)
 const traceDialogVisible = ref(false)
 const dialogTitle = ref('创建批号')
 const formRef = ref()
-const upstreamBatches = ref([])
-const traceList = ref([])
+interface BatchItem {
+  batchId: number
+  batchNo: string
+  enterpriseId: number
+  upstreamBatchId: number | null
+  productVariety: string
+  certNo: string
+  batchStatus: number
+  createTime: string
+  updateTime: string
+}
+
+const upstreamBatches = ref<BatchItem[]>([])
+const traceList = ref<BatchItem[]>([])
 
 const searchForm = reactive({
   batchStatus: null
@@ -212,16 +219,38 @@ const getEnterpriseTypeName = (batch: any) => {
 const loadData = async () => {
   loading.value = true
   try {
+    console.log('加载批号数据，参数:', {
+      pageNum: pagination.pageNum,
+      pageSize: pagination.pageSize,
+      enterpriseId: userInfo.value.enterpriseId,
+      batchStatus: searchForm.batchStatus
+    })
+    
     const res = await getBatchPage({
       pageNum: pagination.pageNum,
       pageSize: pagination.pageSize,
       enterpriseId: userInfo.value.enterpriseId,
       ...searchForm
     })
-    tableData.value = res.data.records
-    pagination.total = res.data.total
-  } catch (error) {
-    console.error(error)
+    
+    console.log('批号数据响应:', res)
+    
+    // 如果res.data存在就用res.data，否则用res本身
+    const data = res.data || res
+    tableData.value = data.records || []
+    pagination.total = data.total || 0
+    
+    console.log('处理后的数据:', {
+      records: tableData.value,
+      total: pagination.total
+    })
+  } catch (error: any) {
+    console.error('加载批号数据失败:', error)
+    if (error.response) {
+      console.error('错误响应:', error.response.data)
+    }
+    tableData.value = []
+    pagination.total = 0
   } finally {
     loading.value = false
   }
@@ -235,10 +264,26 @@ const handleReset = () => {
 
 const loadUpstreamBatches = async () => {
   try {
+    console.log('加载上游批号，企业类型:', userInfo.value.userType)
     const res = await getAvailableUpstreamBatches(userInfo.value.userType)
-    upstreamBatches.value = res.data
+    console.log('上游批号响应:', res)
+    
+    // 处理响应数据
+    if (Array.isArray(res)) {
+      upstreamBatches.value = res
+    } else if (res.data && Array.isArray(res.data)) {
+      upstreamBatches.value = res.data
+    } else if (res.data && Array.isArray(res.data.records)) {
+      upstreamBatches.value = res.data.records
+    } else {
+      console.error('无效的上游批号数据:', res)
+      upstreamBatches.value = []
+    }
+    
+    console.log('处理后的上游批号:', upstreamBatches.value)
   } catch (error) {
-    console.error(error)
+    console.error('加载上游批号失败:', error)
+    upstreamBatches.value = []
   }
 }
 
@@ -259,10 +304,24 @@ const handleSubmit = async () => {
       enterpriseId: userInfo.value.enterpriseId,
       ...form
     }
+    let batchId
     if (userInfo.value.userType === 1) {
-      await createBreedingBatch(data)
+      const res = await createBreedingBatch(data)
+      batchId = res.data
     } else {
-      await createDownstreamBatch(data)
+      const res = await createDownstreamBatch(data)
+      batchId = res.data
+      // 如果是批发商或零售商，需要创建一个已确认的确认记录
+      if (userInfo.value.userType === 2 || userInfo.value.userType === 3) {
+        const upstreamBatch = upstreamBatches.value.find(b => b.batchId === form.upstreamBatchId)
+        if (upstreamBatch) {
+          await createConfirmedRecord({
+            initiateEnterpriseId: userInfo.value.enterpriseId,
+            batchId: batchId,
+            receiveEnterpriseId: upstreamBatch.enterpriseId
+          })
+        }
+      }
     }
     ElMessage.success('创建成功')
     dialogVisible.value = false
@@ -308,9 +367,15 @@ const handleInitiateConfirm = async (row: any) => {
 const handleGenerateCode = async (row: any) => {
   try {
     const res = await generateTraceCode(row.batchId)
-    ElMessage.success(`溯源码生成成功: ${res.data.traceCode}`)
-  } catch (error) {
+    if (res.data && res.data.code === '00000') {
+      ElMessage.success(`溯源码生成成功: ${res.data.data.traceCode}`)
+      loadData() // 刷新列表
+    } else {
+      ElMessage.error((res.data && res.data.message) || '生成溯源码失败')
+    }
+  } catch (error: any) {
     console.error(error)
+    ElMessage.error(error.response?.data?.message || '生成溯源码失败')
   }
 }
 

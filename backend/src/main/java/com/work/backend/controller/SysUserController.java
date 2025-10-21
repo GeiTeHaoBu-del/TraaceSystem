@@ -30,6 +30,12 @@ public class SysUserController {
     String token = sysUserService.login(loginCode, password);
     SysUser user = sysUserService.getByLoginCode(loginCode);
 
+    // 企业用户，查询企业名称
+    if (user.getUserType() != 0) {
+      String enterpriseName = sysUserService.getEnterpriseName(user.getEnterpriseId());
+      user.setEnterpriseName(enterpriseName);
+    }
+
     Map<String, Object> result = new HashMap<>();
     result.put("token", token);
     result.put("userInfo", user);

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { ElMessage } from 'element-plus'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -98,8 +99,13 @@ router.beforeEach((to, from, next) => {
     if (userInfo && to.meta.roles.includes(userInfo.userType)) {
       next()
     } else {
-      // 权限不足，跳转到首页
-      next('/home')
+      // 权限不足，显示具体原因
+      if (to.path === '/confirmation' && userInfo.userType === 1) {
+        ElMessage.info('养殖企业作为源头企业，无需确认上游批次')
+      } else {
+        ElMessage.error('您没有权限访问该页面')
+      }
+      next(false)
     }
   } else {
     next()

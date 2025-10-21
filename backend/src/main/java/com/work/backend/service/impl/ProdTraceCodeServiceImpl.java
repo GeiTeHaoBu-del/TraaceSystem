@@ -31,7 +31,9 @@ public class ProdTraceCodeServiceImpl extends ServiceImpl<ProdTraceCodeMapper, P
     if (batch == null) {
       throw new RuntimeException("批号不存在");
     }
-    if (batch.getBatchStatus() != 2) {
+    
+    // 检查是否是零售企业的批号或者已确认的批号
+    if (!batch.getBatchNo().startsWith("零售") && batch.getBatchStatus() != 2) {
       throw new RuntimeException("只能为已确认的批号生成溯源码");
     }
 
